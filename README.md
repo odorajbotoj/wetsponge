@@ -46,7 +46,7 @@ func checkOrigin(r *http.Request) bool {
 }
 
 // this is a DEMO
-    ws := new(WetSponge.WswsS)
+	ws := new(WetSponge.WswsS)
 	ws.SetPort(19134)
 	ws.SetUpg(&upgrader)
 	mux := http.NewServeMux()
