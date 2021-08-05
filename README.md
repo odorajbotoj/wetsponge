@@ -25,7 +25,7 @@ $ go get github.com/satori/go.uuid
 + Then, import it.
 ``` go
 import (
-    "github.com/OdorajBotoj/WetSponge"
+	"github.com/OdorajBotoj/WetSponge"
 	"encoding/json"
 	"fmt"
 	"github.com/gorilla/websocket"
