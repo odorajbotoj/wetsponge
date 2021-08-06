@@ -29,7 +29,7 @@ $ go get github.com/satori/go.uuid
 + Then, import it.
 ``` go
 import (
-    "github.com/OdorajBotoj/WetSponge"
+	"github.com/OdorajBotoj/WetSponge"
 	"encoding/json"
 	"fmt"
 	"github.com/gorilla/websocket"
@@ -50,7 +50,7 @@ func checkOrigin(r *http.Request) bool {
 }
 
 // this is a DEMO
-    ws := new(WetSponge.WswsS)
+	ws := new(WetSponge.WswsS)
 	ws.SetPort(19134)
 	ws.SetUpg(&upgrader)
 	mux := http.NewServeMux()
