@@ -1,4 +1,4 @@
-package WetSpongeCore
+package WetSponge
 
 import "github.com/satori/go.uuid"
 

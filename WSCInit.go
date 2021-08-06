@@ -1,4 +1,4 @@
-package WetSpongeCore
+package WetSponge
 
 import (
 	"fmt"
