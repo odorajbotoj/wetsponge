@@ -1,7 +1,7 @@
 package main
 
 import (
-	core "github.com/OdorajBotoj/WetSponge"
+	core "github.com/odorajbotoj/wetsponge"
 	"encoding/json"
 	"fmt"
 	"github.com/gorilla/websocket"
@@ -64,11 +64,10 @@ func Aserf(conn *websocket.Conn) {
 		for {
 			_, readMsg, Cerr := conn.ReadMessage()
 			if Cerr != nil {
-				continue
+				return
 			}
 			var recvJson RecvEvent
 			if len(readMsg) == 0 {
-				fmt.Println("len(readMsg) == 0 : true")
 				continue
 			}
 			err := json.Unmarshal(readMsg, &recvJson)
@@ -94,7 +93,10 @@ func Aserf(conn *websocket.Conn) {
 			msgRecv := <-CHAN
 			s := strings.TrimPrefix(msgRecv, "$")
 			msgSend, _ := core.MakeCmdReq(core.COMMANDREQUEST, core.UUID{}, s)
-			conn.WriteMessage(websocket.TextMessage, msgSend)
+			ok := conn.WriteMessage(websocket.TextMessage, msgSend)
+			if ok != nil {
+				return
+			}
 		}
 	}(conn)
 }
