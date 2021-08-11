@@ -1,7 +1,7 @@
 package main
 
 import (
-	core "github.com/OdorajBotoj/WetSponge"
+	core "github.com/odorajbotoj/wetsponge"
 	"encoding/json"
 	"fmt"
 	"github.com/gorilla/websocket"

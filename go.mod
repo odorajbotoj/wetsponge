@@ -1,4 +1,4 @@
-module github.com/OdorajBotoj/WetSponge
+module github.com/odorajootoj/wetsponge
 
 go 1.16
 
