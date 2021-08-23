@@ -31,10 +31,10 @@ type CmdReq struct {
 	Header CmdReqHeader `json:"header"`
 }
 
-func MakeCmdReq(mode uint8, reqId UUID, arg string) ([]byte, error) {
+func MakeCmdReq(mode uint8, reqId string, arg string) ([]byte, error) {
 	var err error = nil
 	var body = CmdReqBody{}
-	var header = CmdReqHeader{RequestId: reqId.String(), Version: 1, MessageType: "commandRequest"}
+	var header = CmdReqHeader{RequestId: reqId, Version: 1, MessageType: "commandRequest"}
 	switch mode {
 	case 0:
 		body.EventName = arg

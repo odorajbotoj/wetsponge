@@ -24,7 +24,7 @@ func (v Ver_struct) GetInfo() string {
 }
 
 var cstZone = time.FixedZone("CST", 8*3600)
-var VERSION = Ver_struct{1, 0, 0, time.Date(2021, 8, 5, 14, 30, 0, 0, cstZone), "The First!"}
+var VERSION = Ver_struct{2, 0, 0, time.Date(2021, 8, 21, 12, 00, 0, 0, cstZone), "DEV - 3"}
 
 func init() {
 	const AUTHOR string = "OdorajBotoj"

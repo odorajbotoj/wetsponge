@@ -1,121 +1,187 @@
 package main
 
 import (
-	core "github.com/odorajbotoj/wetsponge"
-	"encoding/json"
+	"bufio"
 	"fmt"
-	"github.com/gorilla/websocket"
+	"io"
 	"net/http"
+	"os"
+	"os/exec"
+	"strconv"
 	"strings"
+	"time"
+
+	"github.com/gorilla/websocket"
+	"github.com/odorajbotoj/wetsponge"
 )
 
-var PORT uint16 = 19134
-var upgrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
-	WriteBufferSize: 1024,
-	CheckOrigin:     checkOrigin,
+func LO(s string) string {
+	return "§" + s + "§l§o"
 }
+func Serve(conn *websocket.Conn) {
+	fmt.Println("New Connection: ", time.Now().Unix())
+	funcMap := make(map[string]func(wsconn *wetsponge.WsConn, s string))
 
-type RecvEventBodyProperties struct {
-	Message string `json:"Message,omitempty"`
-}
-type RecvEventBody struct {
-	Properties    *RecvEventBodyProperties `json:"properties,omitempty"`
-	StatusMessage string                   `json:"statusMessage,omitempty"`
-}
-type RecvEventHeader struct {
-	MessagePurpose string `json:"messagePurpose,omitempty"`
-}
-type RecvEvent struct {
-	Body   *RecvEventBody   `json:"body,omitempty"`
-	Header *RecvEventHeader `json:"header,omitempty"`
-}
-
-func checkOrigin(r *http.Request) bool {
-	return true
-}
-func fakeMsg(c *websocket.Conn, u string, s string) {
-	msg, _ := core.MakeCmdReq(core.COMMANDREQUEST, core.UUID{}, fmt.Sprintf(`tellraw @a {"rawtext":[{"text":"<%s>%s"}]}`, u, s))
-	c.WriteMessage(websocket.TextMessage, msg)
-}
-func fakeJoin(c *websocket.Conn, u string) {
-	msg, _ := core.MakeCmdReq(core.COMMANDREQUEST, core.UUID{}, fmt.Sprintf(`tellraw @a {"rawtext":[{"text":"§e%s Join the game"}]}`, u))
-	c.WriteMessage(websocket.TextMessage, msg)
-}
-func Aserf(conn *websocket.Conn) {
-	UName := "WetSponge"
-	// fmt.Printf("Test:%T\n", conn)
-	msg, _ := core.MakeCmdReq(core.SUBSCRIBE, core.UUID{}, "PlayerMessage")
-	conn.WriteMessage(websocket.TextMessage, msg)
-
-	msg, _ = core.MakeCmdReq(core.COMMANDREQUEST, core.UUID{}, "say §e[Debug]§r Test1")
-	conn.WriteMessage(websocket.TextMessage, msg)
-
-	fakeJoin(conn, UName)
-
-	msg, _ = core.MakeCmdReq(core.COMMANDREQUEST, core.UUID{}, "say §e[Debug]§r Test2")
-	conn.WriteMessage(websocket.TextMessage, msg)
-
-	msg, _ = core.MakeCmdReq(core.COMMANDREQUEST, core.UUID{}, "say Hello！You can type in §e$<Command>§r to let the server execute the command.")
-	conn.WriteMessage(websocket.TextMessage, msg)
-
-	CHAN := make(chan string)
-	go func(conn *websocket.Conn) {
-		for {
-			_, readMsg, Cerr := conn.ReadMessage()
-			if Cerr != nil {
-				return
-			}
-			var recvJson RecvEvent
-			if len(readMsg) == 0 {
-				continue
-			}
-			err := json.Unmarshal(readMsg, &recvJson)
+	funcMap[":"] = func(wsconn *wetsponge.WsConn, s string) {
+		err := wsconn.CommandRequest(s)
+		if err != nil {
+			fmt.Println(err)
+		}
+	}
+	/*
+		按需求使用
+		***注意:使用该命令可以执行sudo, 这可能危害您的服务器!***
+		funcMap["~$ "] = func(wsconn *wetsponge.WsConn, s string) {
+			// Linux:
+			cmd := exec.Command("/bin/bash", "-c", s)
+			var pipe = wetsponge.SysInfoPipe{wsconn}
+			cmd.Stdout = &pipe
+			cmd.Stderr = &pipe
+			err := cmd.Run()
 			if err != nil {
 				fmt.Println(err)
-				continue
-			}
-			var bodyMsg string = ""
-			switch recvJson.Header.MessagePurpose {
-			case "commandResponse":
-				bodyMsg = recvJson.Body.StatusMessage
-			case "event":
-				bodyMsg = recvJson.Body.Properties.Message
-			}
-			if strings.HasPrefix(bodyMsg, "$") {
-				CHAN <- bodyMsg
-				fmt.Println(bodyMsg)
 			}
 		}
-	}(conn)
-	go func(conn *websocket.Conn) {
+
+		有严重bug
+		funcMap["P> "] = func(wsconn *wetsponge.WsConn, s string) {
+			// Linux
+			ss := strings.Split(s, " ")
+			cmd := exec.Command("./plugins/bin/painter-linux64", ss...)
+			var pipe = wetsponge.CmdReqPipe{wsconn}
+			var errpipe = wetsponge.SysInfoPipe{wsconn}
+			cmd.Stdout = &pipe
+			cmd.Stderr = &errpipe
+			err := cmd.Run()
+			if err != nil {
+				fmt.Println(err)
+			}
+		}
+	*/
+	funcMap["+"] = func(wsconn *wetsponge.WsConn, s string) {
+		ss := strings.Split(s, " ")
+		var cmd *exec.Cmd
+		if len(ss) == 0 {
+			wsconn.WriteError("没有传入数据!")
+		} else if len(ss) == 1 {
+			cmd = exec.Command("./plugins/bin" + ss[0])
+		} else {
+			cmd = exec.Command("./plugins/bin"+ss[0], ss[1:]...)
+		}
+		var pipe = wetsponge.CmdReqPipe{wsconn}
+		var errpipe = wetsponge.SysInfoPipe{wsconn}
+		cmd.Stdout = &pipe
+		cmd.Stderr = &errpipe
+		err := cmd.Run()
+		if err != nil {
+			fmt.Println(err)
+		}
+	}
+	funcMap["&"] = func(wsconn *wetsponge.WsConn, s string) {
+		ss := strings.Split(" ")
+		if len(ss) != 2 {
+			wsconn.WriteError("传入参数错误.")
+		}
+		mcfunc, err := os.Open("./plugins/functions/" + ss[0] + ".mcfunction")
+		defer mcfunc.Close()
+		if err != nil {
+			wsconn.WriteError("找不到文件: " + ss[0] + ".mcfunction")
+		}
+		var pipe = wetsponge.CmdReqPipe{wsconn}
+		bf := bufio.NewReader(mcfunc)
 		for {
-			msgRecv := <-CHAN
-			s := strings.TrimPrefix(msgRecv, "$")
-			msgSend, _ := core.MakeCmdReq(core.COMMANDREQUEST, core.UUID{}, s)
-			ok := conn.WriteMessage(websocket.TextMessage, msgSend)
-			if ok != nil {
-				return
+			l, _, err1 := bf.ReadLine()
+			if err1 != nil {
+				if err == io.EOF {
+					break
+				} else {
+					wsconn.WriteError(fmt.Sprint(err1))
+					break
+				}
+			}
+			wl := strings.ReplaceAll(string(l), "@initiator", ss[1])
+			wl = strings.ReplaceAll(wl, "@s", ss[1])
+			_, err2 := pipe.Write([]byte(wl))
+			if err2 != nil {
+				wsconn.WriteError(fmt.Sprint(err2))
 			}
 		}
-	}(conn)
+	}
+	funcMap["builder"] = wetsponge.SlowBuilder
+	/*
+		由于系统适配问题, 不予执行
+		funcMap["F& "] = func(wsconn *wetsponge.WsConn, s string) {
+			s1 := strings.Replace(s, "%RF%", "./plugins/bin/runFunc", 1)
+			s2 := strings.Replace(s1, "%FD%", "./plugins/functions", 1)
+			cmd := exec.Command("/bin/bash", "-c", s2)
+			var pipe = wetsponge.CmdReqPipe{wsconn}
+			var errpipe = wetsponge.ErrInfoPipe{wsconn}
+			out, Oerr := cmd.StdoutPipe()
+			if Oerr != nil {
+				wsconn.WriteError(fmt.Sprint(Oerr))
+			}
+			bf := bufio.NewReader(out)
+			cmd.Stderr = &errpipe
+			err := cmd.Run()
+			if err != nil {
+				fmt.Println(err)
+			}
+			for {
+				l, _, err1 := bf.ReadLine()
+				if err1 != nil {
+					if err1 == io.EOF {
+						break
+					} else {
+						wsconn.WriteError(fmt.Sprint(err1))
+						break
+					}
+				}
+				_, err2 := pipe.Write(l)
+				if err2 != nil {
+					wsconn.WriteError(fmt.Sprint(err2))
+				}
+			}
+		}
+
+		funcMap["Stdin<"] = func(wsconn *wetsponge.WsConn, s string) {
+			_, err := os.Stdin.Write([]byte(s))
+			if err != nil {
+				wsconn.WriteError(fmt.Sprint(err))
+			}
+		}
+	*/
+	funcMap["?"] = func(wsconn *wetsponge.WsConn, s string) {
+		err := wsconn.CommandRequest(`tellraw @a {"rawtext":[{"text":"` + wetsponge.LIGHT_PURPLE + `|:| -> 让Websocket服务器执行命令\n|+| -> 执行在 ./plugins/bin 下的可执行文件\n|&| -> 执行 ./plugins/functions/ 下后缀为 .mcfunction 的文件\n|?| -> 无参数,打印帮助信息.` + `"}]}`)
+		if err != nil {
+			wsconn.WriteError(fmt.Sprint(err))
+		}
+	}
+
+	wsconn := wetsponge.WsConn{conn, false, wetsponge.NewUUIDPool(), funcMap}
+	wsconn.Subscribe("PlayerMessage")
+	wsconn.CommandRequest(fmt.Sprintf(`tellraw @a { "rawtext" : [ { "text" : "%sw%se%st%ss%sp%so%sn%sg%se" } ] }`, LO("6"), LO("7"), LO("8"), LO("9"), LO("a"), LO("b"), LO("c"), LO("d"), LO("e")))
+	wsconn.CommandRequest(fmt.Sprintf(`tellraw @a { "rawtext" : [ { "text" : "%s%s" } ] }`, wetsponge.GREEN, wetsponge.VERSION.GetInfo()))
+	readCH := make(chan []byte)
+	go wsconn.ReadMsg(readCH)
+	go wsconn.ListenPMSG(readCH)
 }
 func main() {
+	if len(os.Args) != 2 {
+		panic(fmt.Errorf("Hmm~ Where is the PORT?"))
+		return
+	}
+	fmt.Println("HELLO MINECRAFT_BE")
 	fmt.Print("Version Description:\n")
-	fmt.Println(core.VERSION.GetInfo())
-	ws := new(core.WswsS)
-	ws.SetPort(PORT)
-	ws.SetUpg(&upgrader)
+	fmt.Println(wetsponge.VERSION.GetInfo())
 	mux := http.NewServeMux()
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		header := r.Header
-		for i, j := range header {
-			w.Write([]byte(fmt.Sprintf("%s:%s\n", i, j)))
-		}
-	})
-	ws.SetMux(mux)
-	ws.SetHdl("mcws")
-	ws.SetFunc(Aserf)
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) { w.Write([]byte(wetsponge.VERSION.GetInfo())) })
+	port, err := strconv.Atoi(os.Args[1])
+	if err != nil {
+		panic(err)
+		return
+	}
+	uport := uint16(port)
+	ws := &wetsponge.WswsS{uport, mux, &wetsponge.DefaultUpgrader, "/mcws", Serve}
 	wsser := ws.GetSer()
 	wsser.ListenAndServe()
 }
